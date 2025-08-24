@@ -4,15 +4,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use serde_json::Value;
 use tokio::{
     io::{BufReader, BufWriter},
     net::{unix, UnixStream},
 };
 
-trait EventHandler: Send + Sync {
-    fn handle_event(&self, event: &Value);
-}
+use crate::handlers::EventHandler;
 
 type HandlerMap = Arc<RwLock<HashMap<String, Vec<Arc<dyn EventHandler>>>>>;
 

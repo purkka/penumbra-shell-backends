@@ -1,6 +1,4 @@
-mod niri_ipc;
-
-use crate::niri_ipc::NiriIPCClient;
+use niri_workspaces_rs::niri_ipc::NiriIPCClient;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
