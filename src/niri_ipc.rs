@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use niri_ipc::Event;
 use tokio::{
     io::{BufReader, BufWriter},
     net::{unix, UnixStream},
@@ -11,7 +12,7 @@ use tokio::{
 
 use crate::handlers::EventHandler;
 
-type HandlerMap = Arc<RwLock<HashMap<String, Vec<Arc<dyn EventHandler>>>>>;
+type HandlerMap = Arc<RwLock<HashMap<Event, Vec<Arc<dyn EventHandler>>>>>;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
