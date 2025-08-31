@@ -1,23 +1,14 @@
-use std::{
-    collections::HashMap,
-    env,
-    sync::{Arc, RwLock},
-};
+use std::env;
 
-use niri_ipc::Event;
+use niri_ipc::{Reply, Request};
 use tokio::{
-    io::{BufReader, BufWriter},
+    io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
 };
-
-use crate::handlers::EventHandler;
-
-type HandlerMap = Arc<RwLock<HashMap<Event, Vec<Arc<dyn EventHandler>>>>>;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
     writer: BufWriter<unix::OwnedWriteHalf>,
-    handler_map: HandlerMap,
 }
 
 impl NiriIPCClient {
@@ -30,7 +21,22 @@ impl NiriIPCClient {
         Ok(Self {
             reader: BufReader::new(read_half),
             writer: BufWriter::new(write_half),
-            handler_map: Arc::new(RwLock::new(HashMap::new())),
         })
+    }
+
+    pub async fn send(&mut self, request: Request) -> io::Result<Reply> {
+        let mut buf = serde_json::to_string(&request).unwrap();
+        buf.push('\n');
+
+        self.writer.write_all(buf.as_bytes()).await?;
+        self.writer.flush().await?;
+
+        buf.clear();
+        // TODO Read stream instead
+        self.reader.read_line(&mut buf).await?;
+
+        let reply = serde_json::from_str(&buf)?;
+
+        Ok(reply)
     }
 }
