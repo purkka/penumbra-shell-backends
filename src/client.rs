@@ -1,7 +1,7 @@
 use std::env;
 
-use futures::{stream, Stream};
-use niri_ipc::{Event, Reply, Request};
+use futures::{stream, Stream, StreamExt};
+use niri_ipc::{Event, Reply, Request, Response};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
@@ -59,5 +59,36 @@ impl NiriIPCClient {
                 Err(e) => Some((Err(e), reader)),
             }
         })
+    }
+}
+
+pub struct ClientManager {
+    client: NiriIPCClient,
+}
+
+impl ClientManager {
+    pub async fn new() -> Self {
+        Self {
+            client: NiriIPCClient::connect()
+                .await
+                .expect("Failed to connect to niri IPC"),
+        }
+    }
+
+    pub async fn listen_to_event_stream(mut self) -> anyhow::Result<()> {
+        match self.client.send(Request::EventStream).await? {
+            Ok(Response::Handled) => println!("Requested event stream succesfully"),
+            Ok(other) => panic!("Unexpected response from niri: {other:?}"),
+            Err(msg) => panic!("Niri returned error: {msg}"),
+        }
+
+        let events = self.client.read_into_event_stream().await;
+        let mut events = Box::pin(events);
+
+        while let Some(Ok(event)) = events.next().await {
+            println!("Received event: {event:?}")
+        }
+
+        Ok(())
     }
 }
