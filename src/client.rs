@@ -1,7 +1,10 @@
 use std::env;
 
 use futures::{stream, Stream, StreamExt};
-use niri_ipc::{Event, Reply, Request, Response};
+use niri_ipc::{
+    state::{EventStreamState, EventStreamStatePart},
+    Event, Reply, Request, Response,
+};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
@@ -64,6 +67,7 @@ impl NiriIPCClient {
 
 pub struct ClientManager {
     client: NiriIPCClient,
+    state: EventStreamState,
 }
 
 impl ClientManager {
@@ -72,6 +76,7 @@ impl ClientManager {
             client: NiriIPCClient::connect()
                 .await
                 .expect("Failed to connect to niri IPC"),
+            state: EventStreamState::default(),
         }
     }
 
@@ -86,7 +91,10 @@ impl ClientManager {
         let mut events = Box::pin(events);
 
         while let Some(Ok(event)) = events.next().await {
-            println!("Received event: {event:?}")
+            println!("Received event: {event:?}");
+
+            self.state.apply(event);
+            println!("New state: {0:?}", self.state);
         }
 
         Ok(())
