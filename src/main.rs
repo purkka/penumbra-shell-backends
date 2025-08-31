@@ -1,3 +1,4 @@
+use futures::StreamExt;
 use niri_ipc::{Request, Response};
 use niri_workspaces_rs::client::NiriIPCClient;
 
@@ -11,6 +12,13 @@ async fn main() -> anyhow::Result<()> {
         Ok(Response::Handled) => println!("Requested event stream succesfully"),
         Ok(other) => panic!("Unexpected response from niri: {other:?}"),
         Err(msg) => panic!("Niri returned error: {msg}"),
+    }
+
+    let events = client.read_into_event_stream().await;
+    let mut events = Box::pin(events);
+
+    while let Some(Ok(event)) = events.next().await {
+        println!("Received event: {event:?}")
     }
 
     Ok(())

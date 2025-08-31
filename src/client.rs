@@ -1,6 +1,7 @@
 use std::env;
 
-use niri_ipc::{Reply, Request};
+use futures::{stream, Stream};
+use niri_ipc::{Event, Reply, Request};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
@@ -32,11 +33,31 @@ impl NiriIPCClient {
         self.writer.flush().await?;
 
         buf.clear();
-        // TODO Read stream instead
         self.reader.read_line(&mut buf).await?;
 
         let reply = serde_json::from_str(&buf)?;
 
         Ok(reply)
+    }
+
+    pub async fn read_into_event_stream(self) -> impl Stream<Item = io::Result<Event>> {
+        // shutdown writer
+        if let Err(e) = self.writer.into_inner().shutdown().await {
+            eprintln!("Shutting down writer failed: {e:?}")
+        }
+
+        stream::unfold(self.reader, |mut reader| async move {
+            let mut buf = String::new();
+            match reader.read_line(&mut buf).await {
+                Ok(0) => None,
+                Ok(_) => {
+                    let event = serde_json::from_str(&buf)
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e));
+                    buf.clear();
+                    Some((event, reader))
+                }
+                Err(e) => Some((Err(e), reader)),
+            }
+        })
     }
 }
