@@ -1,1 +1,1 @@
-pub mod niri_ipc;
+pub mod client;

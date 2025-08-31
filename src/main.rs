@@ -1,5 +1,5 @@
 use niri_ipc::{Request, Response};
-use niri_workspaces_rs::niri_ipc::NiriIPCClient;
+use niri_workspaces_rs::client::NiriIPCClient;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
