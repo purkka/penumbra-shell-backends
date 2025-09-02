@@ -1,6 +1,8 @@
 use std::env;
 
+use anyhow::anyhow;
 use futures::{stream, Stream, StreamExt};
+use log::{debug, info};
 use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
     Event, Reply, Request, Response,
@@ -18,7 +20,7 @@ pub struct NiriIPCClient {
 impl NiriIPCClient {
     pub async fn connect() -> anyhow::Result<Self> {
         let socket_path =
-            env::var("NIRI_SOCKET").expect("Niri is not running, niri IPC will not be available.");
+            env::var("NIRI_SOCKET").map_err(|e| anyhow!(e).context("NIRI_SOCKET unset"))?;
         let unixstream = UnixStream::connect(socket_path).await?;
         let (read_half, write_half) = unixstream.into_split();
 
@@ -82,7 +84,7 @@ impl ClientManager {
 
     pub async fn listen_to_event_stream(mut self) -> anyhow::Result<()> {
         match self.client.send(Request::EventStream).await? {
-            Ok(Response::Handled) => println!("Requested event stream succesfully"),
+            Ok(Response::Handled) => info!("Requested event stream succesfully"),
             Ok(other) => panic!("Unexpected response from niri: {other:?}"),
             Err(msg) => panic!("Niri returned error: {msg}"),
         }
@@ -91,10 +93,10 @@ impl ClientManager {
         let mut events = Box::pin(events);
 
         while let Some(Ok(event)) = events.next().await {
-            println!("Received event: {event:?}");
+            info!("Received event: {event:?}");
 
             self.state.apply(event);
-            println!("New state: {0:?}", self.state);
+            debug!("New state: {0:?}", self.state);
         }
 
         Ok(())
