@@ -12,6 +12,8 @@ use tokio::{
     net::{unix, UnixStream},
 };
 
+use crate::eww;
+
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
     writer: BufWriter<unix::OwnedWriteHalf>,
@@ -97,6 +99,8 @@ impl ClientManager {
 
             self.state.apply(event);
             debug!("New state: {0:?}", self.state);
+
+            eww::yuckify(&self.state);
         }
 
         Ok(())
