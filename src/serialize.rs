@@ -10,6 +10,18 @@ use niri_ipc::{
 use serde::Serialize;
 
 #[derive(Serialize)]
+pub struct SerializableState<'a> {
+    #[serde(with = "EventStreamStateDef")]
+    inner: &'a EventStreamState,
+}
+
+impl<'a> SerializableState<'a> {
+    pub fn from(inner: &'a EventStreamState) -> Self {
+        SerializableState { inner }
+    }
+}
+
+#[derive(Serialize)]
 #[serde(remote = "EventStreamState")]
 struct EventStreamStateDef {
     #[serde(with = "WorkspacesStateDef")]

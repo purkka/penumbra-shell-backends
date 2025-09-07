@@ -12,6 +12,8 @@ use tokio::{
     net::{unix, UnixStream},
 };
 
+use crate::serialize::SerializableState;
+
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
     writer: BufWriter<unix::OwnedWriteHalf>,
@@ -97,6 +99,9 @@ impl ClientManager {
 
             self.state.apply(event);
             debug!("New state: {0:?}", self.state);
+
+            let state_json = serde_json::to_string(&SerializableState::from(&self.state))?;
+            println!("{state_json}");
         }
 
         Ok(())
