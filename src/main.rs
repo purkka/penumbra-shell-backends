@@ -1,4 +1,4 @@
-use niri_workspaces_rs::client::ClientManager;
+use niri_state_rs::client::ClientManager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
