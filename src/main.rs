@@ -1,4 +1,7 @@
-use niri_state_rs::client::ClientManager;
+mod client;
+mod serialize;
+
+use client::ClientManager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
