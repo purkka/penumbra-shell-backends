@@ -11,13 +11,13 @@ use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct SerializableState<'a> {
-    #[serde(with = "EventStreamStateDef")]
-    inner: &'a EventStreamState,
+    #[serde(with = "EventStreamStateDef", flatten)]
+    event_stream_state: &'a EventStreamState,
 }
 
 impl<'a> SerializableState<'a> {
-    pub fn from(inner: &'a EventStreamState) -> Self {
-        SerializableState { inner }
+    pub fn from(event_stream_state: &'a EventStreamState) -> Self {
+        SerializableState { event_stream_state }
     }
 }
 
