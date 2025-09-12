@@ -1,18 +1,19 @@
 use std::env;
 
 use anyhow::anyhow;
-use futures::{stream, Stream, StreamExt};
+use futures::{
+    stream::{self},
+    Stream, StreamExt,
+};
 use log::{debug, info};
 use niri_ipc::{
-    state::{EventStreamState, EventStreamStatePart},
+    state::{EventStreamStatePart, WorkspacesState},
     Event, Reply, Request, Response,
 };
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
 };
-
-use crate::serialize::SerializableState;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
@@ -47,7 +48,14 @@ impl NiriIPCClient {
         Ok(reply)
     }
 
-    pub async fn read_into_event_stream(self) -> impl Stream<Item = io::Result<Event>> {
+    pub async fn request_and_read_event_stream(mut self) -> impl Stream<Item = io::Result<Event>> {
+        match self.send(Request::EventStream).await {
+            Ok(Ok(Response::Handled)) => info!("Requested event stream successfully"),
+            Ok(Ok(other)) => panic!("Unexpected response from niri: {other:?}"),
+            Ok(Err(msg)) => panic!("Niri returned error: {msg}"),
+            Err(msg) => panic!("Transport error: {msg}"),
+        }
+
         // shutdown writer
         if let Err(e) = self.writer.into_inner().shutdown().await {
             eprintln!("Shutting down writer failed: {e:?}")
@@ -69,39 +77,37 @@ impl NiriIPCClient {
     }
 }
 
-pub struct ClientManager {
+pub struct ClientManager<T: EventStreamStatePart> {
     client: NiriIPCClient,
-    state: EventStreamState,
+    state: T,
 }
 
-impl ClientManager {
+impl ClientManager<WorkspacesState> {
     pub async fn new() -> Self {
         Self {
             client: NiriIPCClient::connect()
                 .await
                 .expect("Failed to connect to niri IPC"),
-            state: EventStreamState::default(),
+            state: WorkspacesState::default(),
         }
     }
 
     pub async fn listen_to_event_stream(mut self) -> anyhow::Result<()> {
-        match self.client.send(Request::EventStream).await? {
-            Ok(Response::Handled) => info!("Requested event stream succesfully"),
-            Ok(other) => panic!("Unexpected response from niri: {other:?}"),
-            Err(msg) => panic!("Niri returned error: {msg}"),
-        }
-
-        let events = self.client.read_into_event_stream().await;
-        let mut events = Box::pin(events);
+        let mut events = Box::pin(self.client.request_and_read_event_stream().await);
 
         while let Some(Ok(event)) = events.next().await {
             info!("Received event: {event:?}");
 
-            self.state.apply(event);
-            debug!("New state: {0:?}", self.state);
-
-            let state_json = serde_json::to_string(&SerializableState::from(&self.state))?;
-            println!("{state_json}");
+            match event {
+                Event::WorkspacesChanged { .. }
+                | Event::WorkspaceUrgencyChanged { .. }
+                | Event::WorkspaceActivated { .. }
+                | Event::WorkspaceActiveWindowChanged { .. } => {
+                    self.state.apply(event);
+                    debug!("New state: {0:?}", self.state);
+                }
+                _ => {}
+            }
         }
 
         Ok(())
