@@ -15,6 +15,8 @@ use tokio::{
     net::{unix, UnixStream},
 };
 
+use crate::api::from_state;
+
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
     writer: BufWriter<unix::OwnedWriteHalf>,
@@ -105,6 +107,8 @@ impl ClientManager<WorkspacesState> {
                 | Event::WorkspaceActiveWindowChanged { .. } => {
                     self.state.apply(event);
                     debug!("New state: {0:?}", self.state);
+
+                    from_state(&self.state)?;
                 }
                 _ => {}
             }
