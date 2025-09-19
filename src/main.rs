@@ -1,6 +1,5 @@
 mod api;
 mod client;
-mod serialize;
 
 use client::ClientManager;
 
