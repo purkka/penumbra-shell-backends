@@ -6,16 +6,13 @@ use futures::{
     Stream, StreamExt,
 };
 use log::{debug, info};
-use niri_ipc::{
-    state::{EventStreamStatePart, WorkspacesState},
-    Event, Reply, Request, Response,
-};
+use niri_ipc::{state::{EventStreamState, EventStreamStatePart}, Event, Reply, Request, Response};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
 };
 
-use crate::api::from_state;
+use crate::api::PrintStateInfo;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
@@ -35,7 +32,7 @@ impl NiriIPCClient {
         })
     }
 
-    pub async fn send(&mut self, request: Request) -> io::Result<Reply> {
+    async fn send(&mut self, request: Request) -> io::Result<Reply> {
         let mut buf = serde_json::to_string(&request).unwrap();
         buf.push('\n');
 
@@ -79,39 +76,33 @@ impl NiriIPCClient {
     }
 }
 
-pub struct ClientManager<T: EventStreamStatePart> {
+pub struct ClientManager {
     client: NiriIPCClient,
-    state: T,
+    state: EventStreamState,
 }
 
-impl ClientManager<WorkspacesState> {
+impl ClientManager {
     pub async fn new() -> Self {
         Self {
             client: NiriIPCClient::connect()
                 .await
                 .expect("Failed to connect to niri IPC"),
-            state: WorkspacesState::default(),
+            state: EventStreamState::default(),
         }
     }
+}
 
+impl ClientManager {
     pub async fn listen_to_event_stream(mut self) -> anyhow::Result<()> {
         let mut events = Box::pin(self.client.request_and_read_event_stream().await);
 
         while let Some(Ok(event)) = events.next().await {
             info!("Received event: {event:?}");
 
-            match event {
-                Event::WorkspacesChanged { .. }
-                | Event::WorkspaceUrgencyChanged { .. }
-                | Event::WorkspaceActivated { .. }
-                | Event::WorkspaceActiveWindowChanged { .. } => {
-                    self.state.apply(event);
-                    debug!("New state: {0:?}", self.state);
+            self.state.apply(event);
+            debug!("New state: {0:?}", self.state);
 
-                    from_state(&self.state)?;
-                }
-                _ => {}
-            }
+            self.state.print_state_info()?;
         }
 
         Ok(())
