@@ -6,7 +6,10 @@ use futures::{
     Stream, StreamExt,
 };
 use log::{debug, info};
-use niri_ipc::{state::{EventStreamState, EventStreamStatePart}, Event, Reply, Request, Response};
+use niri_ipc::{
+    state::{EventStreamState, EventStreamStatePart},
+    Event, Reply, Request, Response,
+};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},

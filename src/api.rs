@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use itertools::Itertools;
 use niri_ipc::{state::EventStreamState, Window, Workspace};
@@ -7,16 +7,15 @@ use serde::Serialize;
 #[derive(Serialize)]
 struct WorkspaceInfo {
     active_workspace: u8, // idx
-    nof_workspaces: u64,
+    workspaces: Vec<u8>,
 }
 
 type WorkspacesInfo = HashMap<String, WorkspaceInfo>; // map from output to info
 
 #[derive(Serialize)]
 struct WorkspaceWindowsInfo {
-    focused_window: Option<usize>, // position from left
-    focused_window_floating: Option<bool>,
-    nof_windows: usize,
+    focused_window_id: Option<u64>,
+    window_ids: Vec<u64>,
 }
 
 type WindowsInfo = HashMap<String, WorkspaceWindowsInfo>; // map from output to info
@@ -59,12 +58,15 @@ impl PrintStateInfo for EventStreamState {
                     }
                     None => panic!("No active workspace found for output: {output}"),
                 };
-                let nof_workspaces = workspaces.len().try_into().unwrap();
+
+                let nof_workspaces: u8 = workspaces.len().try_into().unwrap();
+                let workspaces: Vec<u8> = (1..(nof_workspaces + 1)).collect();
+
                 (
                     output.clone(),
                     WorkspaceInfo {
                         active_workspace,
-                        nof_workspaces,
+                        workspaces,
                     },
                 )
             })
@@ -81,34 +83,71 @@ impl PrintStateInfo for EventStreamState {
         let windows: WindowsInfo = active_workspaces
             .iter()
             .map(|(output, workspace_id)| {
-                let workspace_windows = all_windows_grouped
-                    .get(workspace_id)
-                    .map(|v| v.as_slice())
-                    .unwrap_or(&[]);
+                let scrolling_layout_window_map: BTreeMap<usize, Vec<&Window>> =
+                    all_windows_grouped
+                        .get(workspace_id)
+                        .map(|windows| {
+                            // create btree with x-position (column) as the key
+                            let mut map: BTreeMap<usize, Vec<&Window>> = windows
+                                .iter()
+                                .filter_map(|wd| {
+                                    wd.layout.pos_in_scrolling_layout.map(|(x, _)| (x, wd))
+                                })
+                                .fold(
+                                    BTreeMap::<usize, Vec<&Window>>::new(),
+                                    |mut acc, (x, wd)| {
+                                        acc.entry(x).or_default().push(wd);
+                                        acc
+                                    },
+                                );
 
-                let nof_windows = workspace_windows.len();
+                            // sort each column according to their y-positions as well
+                            map.values_mut().for_each(|column| {
+                                column
+                                    .sort_by_key(|wd| wd.layout.pos_in_scrolling_layout.unwrap().1)
+                            });
 
-                let (focused_window, focused_window_floating) =
-                    match workspace_windows.iter().find(|window| window.is_focused) {
-                        Some(window) => {
-                            let position = window
-                                .layout
-                                .pos_in_scrolling_layout
-                                .map(|(column_index, _)| column_index);
-                            let floating = Some(window.is_floating);
-                            (position, floating)
-                        }
-                        None => (None, None),
-                    };
+                            map
+                        })
+                        .unwrap_or_default();
 
-                (
-                    output.clone(),
-                    WorkspaceWindowsInfo {
-                        focused_window,
-                        focused_window_floating,
-                        nof_windows,
-                    },
-                )
+                let scrolling_layout_window_ids: Vec<u64> = scrolling_layout_window_map
+                    .values()
+                    .filter_map(|column| column.first().map(|wd| wd.id))
+                    .collect();
+
+                let scrolling_layout_focused_window: Option<&Window> = scrolling_layout_window_map
+                    .values()
+                    .flat_map(|column| column.iter().copied())
+                    .find(|wd| wd.is_focused);
+
+                match scrolling_layout_focused_window {
+                    Some(focused_window) => {
+                        let focused_column_topmost_id: Option<u64> =
+                            scrolling_layout_window_map.iter().find_map(|(_, col)| {
+                                if col.iter().any(|w| w.id == focused_window.id) {
+                                    col.first().map(|w| w.id)
+                                } else {
+                                    None
+                                }
+                            });
+
+                        (
+                            output.clone(),
+                            WorkspaceWindowsInfo {
+                                focused_window_id: focused_column_topmost_id,
+                                window_ids: scrolling_layout_window_ids,
+                            },
+                        )
+                    }
+                    None => (
+                        output.clone(),
+                        WorkspaceWindowsInfo {
+                            focused_window_id: None,
+                            window_ids: scrolling_layout_window_ids,
+                        },
+                    ),
+                }
             })
             .collect();
 
