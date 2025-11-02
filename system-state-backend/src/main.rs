@@ -2,7 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
-use notify::{Event, INotifyWatcher, RecursiveMode, Watcher};
+use log::{error, info};
+use notify::event::{AccessKind::Close, AccessMode::Write};
+use notify::{Event, EventKind::Access, INotifyWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -42,22 +44,24 @@ fn async_watcher() -> notify::Result<(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    env_logger::init();
+
     let backlight_device = detect_backlight_device()
         .unwrap_or_else(|| panic!("No valid backlight found in {BACKLIGHT}"));
 
     let brightness_path = backlight_device.join("brightness");
     let max_brightness_path = backlight_device.join("max_brightness");
 
-    let max_brightness: i32 = fs::read_to_string(&max_brightness_path)?
+    let max_brightness: u16 = fs::read_to_string(&max_brightness_path)?
         .trim()
         .parse()
         .unwrap();
-    let current: i32 = fs::read_to_string(&brightness_path)?
+    let mut current_brightness: u16 = fs::read_to_string(&brightness_path)?
         .trim()
         .parse()
         .unwrap();
 
-    println!("current brightness: {current} (max: {max_brightness})");
+    info!("initial brightness: {current_brightness} (max: {max_brightness})");
 
     let (mut watcher, rx) = async_watcher()?;
 
@@ -67,8 +71,15 @@ async fn main() -> anyhow::Result<()> {
 
     while let Some(res) = rx.next().await {
         match res {
-            Ok(event) => println!("changed: {event:?}"),
-            Err(e) => println!("watch error: {e:?}"),
+            Ok(Event { kind, .. }) => {
+                if matches!(kind, Access(Close(Write))) {
+                    if let Ok(contents) = fs::read_to_string(&brightness_path) {
+                        current_brightness = contents.trim().parse().unwrap();
+                        info!("new brightness: {current_brightness}");
+                    }
+                }
+            }
+            Err(e) => error!("watch error: {e:?}"),
         }
     }
 
