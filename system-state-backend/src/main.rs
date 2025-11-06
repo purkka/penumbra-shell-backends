@@ -1,16 +1,14 @@
 mod state;
+mod watch;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use futures::StreamExt;
-use log::{error, info};
-use notify::event::{AccessKind::Close, AccessMode::Write};
-use notify::{Event, EventKind::Access, INotifyWatcher, RecursiveMode, Watcher};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use log::info;
 
-use crate::state::{SystemEvent, SystemState, SystemStatePart};
+use crate::state::{SystemState, SystemStatePart};
+use crate::watch::watch_file;
 
 const BACKLIGHT: &str = "/sys/class/backlight";
 
@@ -29,21 +27,6 @@ fn detect_backlight_device() -> Option<PathBuf> {
         }
     }
     None
-}
-
-fn async_watcher() -> notify::Result<(
-    notify::INotifyWatcher,
-    tokio::sync::mpsc::Receiver<notify::Result<notify::Event>>,
-)> {
-    let (tx, rx) = mpsc::channel::<notify::Result<Event>>(1);
-    let watcher = INotifyWatcher::new(
-        move |res| {
-            let _ = tx.blocking_send(res);
-        },
-        notify::Config::default(),
-    )?;
-
-    Ok((watcher, rx))
 }
 
 #[tokio::main]
@@ -69,29 +52,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("initial state: {system_state:?}");
 
-    let (mut watcher, rx) = async_watcher()?;
+    let mut stream = watch_file(brightness_path.as_ref()).await?;
 
-    watcher.watch(brightness_path.as_ref(), RecursiveMode::NonRecursive)?;
-
-    let mut rx = ReceiverStream::new(rx);
-
-    while let Some(res) = rx.next().await {
-        match res {
-            Ok(Event { kind, .. }) => {
-                if matches!(kind, Access(Close(Write))) {
-                    if let Ok(contents) = fs::read_to_string(&brightness_path) {
-                        let system_event = SystemEvent::BrightnessChanged {
-                            new_brightness: contents.trim().parse().unwrap(),
-                        };
-
-                        system_state.apply(system_event);
-
-                        info!("new state: {system_state:?}");
-                    }
-                }
-            }
-            Err(e) => error!("watch error: {e:?}"),
-        }
+    while let Some(event) = stream.next().await {
+        system_state.apply(event);
+        info!("new state: {system_state:?}");
     }
 
     Ok(())
