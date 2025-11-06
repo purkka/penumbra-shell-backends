@@ -1,3 +1,5 @@
+mod state;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -7,6 +9,8 @@ use notify::event::{AccessKind::Close, AccessMode::Write};
 use notify::{Event, EventKind::Access, INotifyWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+
+use crate::state::{SystemEvent, SystemState, SystemStatePart};
 
 const BACKLIGHT: &str = "/sys/class/backlight";
 
@@ -56,12 +60,14 @@ async fn main() -> anyhow::Result<()> {
         .trim()
         .parse()
         .unwrap();
-    let mut current_brightness: u16 = fs::read_to_string(&brightness_path)?
+    let current_brightness: u16 = fs::read_to_string(&brightness_path)?
         .trim()
         .parse()
         .unwrap();
 
-    info!("initial brightness: {current_brightness} (max: {max_brightness})");
+    let mut system_state = SystemState::initialize(current_brightness, max_brightness);
+
+    info!("initial state: {system_state:?}");
 
     let (mut watcher, rx) = async_watcher()?;
 
@@ -74,8 +80,13 @@ async fn main() -> anyhow::Result<()> {
             Ok(Event { kind, .. }) => {
                 if matches!(kind, Access(Close(Write))) {
                     if let Ok(contents) = fs::read_to_string(&brightness_path) {
-                        current_brightness = contents.trim().parse().unwrap();
-                        info!("new brightness: {current_brightness}");
+                        let system_event = SystemEvent::BrightnessChanged {
+                            new_brightness: contents.trim().parse().unwrap(),
+                        };
+
+                        system_state.apply(system_event);
+
+                        info!("new state: {system_state:?}");
                     }
                 }
             }
