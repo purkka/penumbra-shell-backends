@@ -3,6 +3,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
+fn detect_sysfs_device(class_dir: &str, required_files: &[&str]) -> Option<PathBuf> {
+    let base = Path::new(class_dir);
+    if !base.exists() {
+        return None;
+    }
+
+    if let Ok(entries) = fs::read_dir(base) {
+        return entries
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| required_files.iter().all(|file| path.join(file).exists()));
+    }
+    None
+}
+
 pub struct Brightness;
 
 impl Brightness {
@@ -10,27 +25,10 @@ impl Brightness {
     const BRIGHTNESS: &str = "brightness";
     const MAX_BRIGHTNESS: &str = "max_brightness";
 
-    fn detect_backlight_device() -> Option<PathBuf> {
-        let base = Path::new(Self::BACKLIGHT);
-        if !base.exists() {
-            return None;
-        }
-
-        if let Ok(entries) = fs::read_dir(base) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.join(Self::BRIGHTNESS).exists() && path.join(Self::MAX_BRIGHTNESS).exists()
-                {
-                    return Some(path);
-                }
-            }
-        }
-        None
-    }
-
     pub fn initialize() -> anyhow::Result<(PathBuf, u16, u16)> {
-        let backlight_device = Self::detect_backlight_device()
-            .unwrap_or_else(|| panic!("No valid backlight found in {}", Self::BACKLIGHT));
+        let backlight_device =
+            detect_sysfs_device(Self::BACKLIGHT, &[Self::BRIGHTNESS, Self::MAX_BRIGHTNESS])
+                .unwrap_or_else(|| panic!("No valid backlight found in {}", Self::BACKLIGHT));
 
         let brightness_path = backlight_device.join(Self::BRIGHTNESS);
         let max_brightness_path = backlight_device.join(Self::MAX_BRIGHTNESS);
