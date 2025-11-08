@@ -4,7 +4,7 @@ use log::info;
 use tokio_stream::{StreamExt, StreamMap};
 
 use crate::{
-    state::{SystemState, SystemStatePart},
+    state::SystemState,
     sysfs::Brightness,
     watch::{SystemEventKind, watch_file},
 };
@@ -32,9 +32,8 @@ impl SystemStateManager {
             stream_map.insert(system_event_kind, stream);
         }
 
-        // TODO Pass event kind to state apply
-        while let Some((_system_event_kind, event)) = stream_map.next().await {
-            self.state.apply(event);
+        while let Some((event_kind, event)) = stream_map.next().await {
+            self.state.apply(event_kind, event);
             info!("new state: {0:?}", self.state);
         }
 
