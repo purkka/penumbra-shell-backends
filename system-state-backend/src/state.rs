@@ -2,6 +2,7 @@ use log::debug;
 
 use crate::watch::SystemEventKind;
 
+#[derive(Debug)]
 pub enum SystemEvent {
     BrightnessChanged { new_brightness: u16 },
 }

@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::state::SystemEvent;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SystemEventKind {
     Brightness,
 }

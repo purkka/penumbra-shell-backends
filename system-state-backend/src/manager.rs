@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use log::info;
+use log::{debug, info};
 use tokio_stream::{StreamExt, StreamMap};
 
 use crate::{
@@ -33,8 +33,10 @@ impl SystemStateManager {
         }
 
         while let Some((event_kind, event)) = stream_map.next().await {
+            info!("Received event (of type): {event:?} ({event_kind:?})");
+
             self.state.apply(event_kind, event);
-            info!("new state: {0:?}", self.state);
+            debug!("New state: {0:?}", self.state);
         }
 
         Ok(())
