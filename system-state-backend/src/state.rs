@@ -1,6 +1,8 @@
 // Design and implementation inspired by the event stream and state in
 // `niri_ipc` from niri https://github.com/YaLTeR/niri.
 
+use log::debug;
+
 pub enum SystemEvent {
     BrightnessChanged { new_brightness: u16 },
 }
@@ -37,12 +39,16 @@ pub struct SystemState {
 
 impl SystemState {
     pub fn initialize(brightness: u16, max_brightness: u16) -> Self {
-        Self {
+        let initial_state = Self {
             brightness: BrightnessState {
                 brightness,
                 max_brightness,
             },
-        }
+        };
+
+        debug!("initial state: {initial_state:?}");
+
+        initial_state
     }
 }
 

@@ -10,6 +10,11 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::state::SystemEvent;
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SystemEventKind {
+    Brightness,
+}
+
 fn inotify_watcher() -> notify::Result<(
     notify::INotifyWatcher,
     tokio::sync::mpsc::Receiver<notify::Result<notify::Event>>,
@@ -25,7 +30,10 @@ fn inotify_watcher() -> notify::Result<(
     Ok((watcher, rx))
 }
 
-pub async fn watch_file(path: &Path) -> notify::Result<ReceiverStream<SystemEvent>> {
+pub async fn watch_file(
+    path: &Path,
+    system_event_kind: SystemEventKind,
+) -> notify::Result<ReceiverStream<SystemEvent>> {
     let (mut watcher, rx) = inotify_watcher()?;
     watcher.watch(path.as_ref(), RecursiveMode::NonRecursive)?;
 
@@ -43,8 +51,10 @@ pub async fn watch_file(path: &Path) -> notify::Result<ReceiverStream<SystemEven
                     if matches!(kind, Access(Close(Write))) {
                         if let Ok(contents) = fs::read_to_string(&path) {
                             // TODO Handle other types of files as well
-                            let system_event = SystemEvent::BrightnessChanged {
-                                new_brightness: contents.trim().parse().unwrap(),
+                            let system_event = match system_event_kind {
+                                SystemEventKind::Brightness => SystemEvent::BrightnessChanged {
+                                    new_brightness: contents.trim().parse().unwrap(),
+                                },
                             };
                             let _ = app_tx.send(system_event).await;
                         }
