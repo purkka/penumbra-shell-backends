@@ -24,7 +24,7 @@ struct WorkspaceWindowsInfo {
 type WindowsInfo = HashMap<String, WorkspaceWindowsInfo>; // map from output to info
 
 #[derive(Serialize)]
-struct StateInfo {
+struct NiriStateInfo {
     workspaces: WorkspacesInfo,
     windows: WindowsInfo,
 }
@@ -146,7 +146,7 @@ impl PrintStateInfo for NiriState {
             })
             .collect();
 
-        let state_info = StateInfo {
+        let state_info = NiriStateInfo {
             workspaces,
             windows,
         };
