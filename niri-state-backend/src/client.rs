@@ -1,6 +1,7 @@
-use std::env;
+use std::{collections::HashMap, env};
 
 use anyhow::anyhow;
+use common::PrintStateInfo;
 use futures::{
     stream::{self},
     Stream, StreamExt,
@@ -8,14 +9,12 @@ use futures::{
 use log::{debug, info};
 use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
-    Event, Reply, Request, Response,
+    Event, Reply, Request, Response, Window, Workspace,
 };
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
 };
-
-use crate::api::PrintStateInfo;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
@@ -79,9 +78,26 @@ impl NiriIPCClient {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct NiriState(pub EventStreamState);
+
+impl NiriState {
+    pub fn apply(&mut self, event: Event) -> Option<Event> {
+        self.0.apply(event)
+    }
+
+    pub fn workspaces_state(&self) -> HashMap<u64, Workspace> {
+        self.0.workspaces.workspaces.clone()
+    }
+
+    pub fn windows_state(&self) -> HashMap<u64, Window> {
+        self.0.windows.windows.clone()
+    }
+}
+
 pub struct ClientManager {
     client: NiriIPCClient,
-    state: EventStreamState,
+    state: NiriState,
 }
 
 impl ClientManager {
@@ -90,7 +106,7 @@ impl ClientManager {
             client: NiriIPCClient::connect()
                 .await
                 .expect("Failed to connect to niri IPC"),
-            state: EventStreamState::default(),
+            state: NiriState::default(),
         }
     }
 }

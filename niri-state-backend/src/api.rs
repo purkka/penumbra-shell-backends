@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
+use common::PrintStateInfo;
 use itertools::Itertools;
-use niri_ipc::{state::EventStreamState, Window, Workspace};
+use niri_ipc::{Window, Workspace};
 use serde::Serialize;
+
+use crate::client::NiriState;
 
 #[derive(Serialize)]
 struct WorkspaceInfo {
@@ -26,16 +29,10 @@ struct StateInfo {
     windows: WindowsInfo,
 }
 
-pub trait PrintStateInfo {
-    fn print_state_info(&self) -> Result<(), anyhow::Error>;
-}
-
-impl PrintStateInfo for EventStreamState {
-    fn print_state_info(&self) -> Result<(), anyhow::Error> {
+impl PrintStateInfo for NiriState {
+    fn print_state_info(&self) -> anyhow::Result<()> {
         let all_workspaces_grouped: HashMap<String, Vec<Workspace>> = self
-            .workspaces
-            .workspaces
-            .clone()
+            .workspaces_state()
             .into_values()
             .filter_map(|ws| ws.output.clone().map(|output| (output, ws)))
             .into_group_map();
@@ -73,9 +70,7 @@ impl PrintStateInfo for EventStreamState {
             .collect();
 
         let all_windows_grouped: HashMap<u64, Vec<Window>> = self
-            .windows
-            .windows
-            .clone()
+            .windows_state()
             .into_values()
             .filter_map(|ws| ws.workspace_id.map(|workspace_id| (workspace_id, ws)))
             .into_group_map();

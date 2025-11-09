@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["niri-state-backend", "system-state-backend"]
+members = [ "common","niri-state-backend", "system-state-backend"]
