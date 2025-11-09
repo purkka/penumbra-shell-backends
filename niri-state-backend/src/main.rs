@@ -1,5 +1,6 @@
 mod api;
 mod client;
+mod state;
 
 use client::ClientManager;
 

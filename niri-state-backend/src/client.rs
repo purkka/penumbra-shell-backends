@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::env;
 
 use anyhow::anyhow;
 use common::PrintStateInfo;
@@ -7,14 +7,13 @@ use futures::{
     Stream, StreamExt,
 };
 use log::{debug, info};
-use niri_ipc::{
-    state::{EventStreamState, EventStreamStatePart},
-    Event, Reply, Request, Response, Window, Workspace,
-};
+use niri_ipc::{Event, Reply, Request, Response};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
 };
+
+use crate::state::NiriState;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
@@ -75,23 +74,6 @@ impl NiriIPCClient {
                 Err(e) => Some((Err(e), reader)),
             }
         })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct NiriState(pub EventStreamState);
-
-impl NiriState {
-    pub fn apply(&mut self, event: Event) -> Option<Event> {
-        self.0.apply(event)
-    }
-
-    pub fn workspaces_state(&self) -> HashMap<u64, Workspace> {
-        self.0.workspaces.workspaces.clone()
-    }
-
-    pub fn windows_state(&self) -> HashMap<u64, Window> {
-        self.0.windows.windows.clone()
     }
 }
 

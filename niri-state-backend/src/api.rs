@@ -5,7 +5,7 @@ use itertools::Itertools;
 use niri_ipc::{Window, Workspace};
 use serde::Serialize;
 
-use crate::client::NiriState;
+use crate::state::NiriState;
 
 #[derive(Serialize)]
 struct WorkspaceInfo {
