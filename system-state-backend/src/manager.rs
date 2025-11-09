@@ -6,7 +6,7 @@ use tokio_stream::{StreamExt, StreamMap};
 
 use crate::{
     state::SystemState,
-    sysfs::Brightness,
+    sysfs::{Brightness, SysfsWatch},
     watch::{SystemEventKind, watch_file},
 };
 
@@ -17,7 +17,7 @@ pub struct SystemStateManager {
 
 impl SystemStateManager {
     pub fn new() -> Self {
-        let (brightness_path, initial_brightness, max_brightness) =
+        let (brightness_path, (initial_brightness, max_brightness)) =
             Brightness::initialize().expect("Failed to detect and initialize backlight brightness");
 
         Self {
