@@ -1,6 +1,6 @@
 use std::{path::PathBuf, pin::Pin};
 
-use common::StateManager;
+use common::{PrintStateInfo, StateManager};
 use log::{debug, info};
 use tokio_stream::{StreamExt, StreamMap};
 
@@ -43,6 +43,8 @@ impl StateManager for SystemStateManager {
 
                 self.state.apply(event_kind, event);
                 debug!("New state: {0:?}", self.state);
+
+                self.state.print_state_info()?;
             }
 
             Ok(())

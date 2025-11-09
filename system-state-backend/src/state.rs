@@ -1,3 +1,4 @@
+use common::PrintStateInfo;
 use log::debug;
 
 use crate::watch::SystemEventKind;
@@ -8,9 +9,9 @@ pub enum SystemEvent {
 }
 
 #[derive(Debug)]
-struct BrightnessState {
-    brightness: u16,
-    max_brightness: u16,
+pub struct BrightnessState {
+    pub brightness: u16,
+    pub max_brightness: u16,
 }
 
 impl BrightnessState {
@@ -21,7 +22,7 @@ impl BrightnessState {
 
 #[derive(Debug)]
 pub struct SystemState {
-    brightness: BrightnessState,
+    pub brightness: BrightnessState,
 }
 
 impl SystemState {
@@ -34,6 +35,9 @@ impl SystemState {
         };
 
         debug!("initial state: {initial_state:?}");
+        if let Err(err) = initial_state.print_state_info() {
+            panic!("Failed to print initial state: {err}")
+        }
 
         initial_state
     }
