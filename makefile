@@ -1,4 +1,4 @@
-BINARY_NAMES := $(strip $(shell cargo metadata --no-deps --format-version=1 | jq -r '.packages[].name'))
+BINARY_NAMES := $(strip $(shell cargo metadata --no-deps --format-version=1 | jq -r '.packages[].targets[] | select(.kind[] == "bin") | .name'))
 TARGET_DIR := $(HOME)/.config/eww/scripts
 
 update: build copy
