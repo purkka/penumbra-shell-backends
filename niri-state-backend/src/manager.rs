@@ -1,4 +1,6 @@
-use common::PrintStateInfo;
+use std::pin::Pin;
+
+use common::{PrintStateInfo, StateManager};
 use futures::StreamExt;
 use log::{debug, info};
 
@@ -20,19 +22,23 @@ impl NiriStateManager {
     }
 }
 
-impl NiriStateManager {
-    pub async fn listen_to_event_stream(mut self) -> anyhow::Result<()> {
-        let mut events = Box::pin(self.client.request_and_read_event_stream().await);
+impl StateManager for NiriStateManager {
+    fn listen_to_stream(
+        mut self: Box<Self>,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
+        Box::pin(async move {
+            let mut events = Box::pin(self.client.request_and_read_event_stream().await);
 
-        while let Some(Ok(event)) = events.next().await {
-            info!("Received event: {event:?}");
+            while let Some(Ok(event)) = events.next().await {
+                info!("Received event: {event:?}");
 
-            self.state.apply(event);
-            debug!("New state: {0:?}", self.state);
+                self.state.apply(event);
+                debug!("New state: {0:?}", self.state);
 
-            self.state.print_state_info()?;
-        }
+                self.state.print_state_info()?;
+            }
 
-        Ok(())
+            Ok(())
+        })
     }
 }

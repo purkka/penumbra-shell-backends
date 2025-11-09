@@ -1,5 +1,6 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, pin::Pin};
 
+use common::StateManager;
 use log::{debug, info};
 use tokio_stream::{StreamExt, StreamMap};
 
@@ -24,21 +25,27 @@ impl SystemStateManager {
             watch_paths: vec![(brightness_path, SystemEventKind::Brightness)],
         }
     }
+}
 
-    pub async fn listen_to_streams(mut self) -> anyhow::Result<()> {
-        let mut stream_map = StreamMap::new();
-        for (watch_file_path, system_event_kind) in self.watch_paths {
-            let stream = watch_file(watch_file_path.as_ref(), system_event_kind).await?;
-            stream_map.insert(system_event_kind, stream);
-        }
+impl StateManager for SystemStateManager {
+    fn listen_to_stream(
+        mut self: Box<Self>,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
+        Box::pin(async move {
+            let mut stream_map = StreamMap::new();
+            for (watch_file_path, system_event_kind) in self.watch_paths {
+                let stream = watch_file(watch_file_path.as_ref(), system_event_kind).await?;
+                stream_map.insert(system_event_kind, stream);
+            }
 
-        while let Some((event_kind, event)) = stream_map.next().await {
-            info!("Received event (of type): {event:?} ({event_kind:?})");
+            while let Some((event_kind, event)) = stream_map.next().await {
+                info!("Received event (of type): {event:?} ({event_kind:?})");
 
-            self.state.apply(event_kind, event);
-            debug!("New state: {0:?}", self.state);
-        }
+                self.state.apply(event_kind, event);
+                debug!("New state: {0:?}", self.state);
+            }
 
-        Ok(())
+            Ok(())
+        })
     }
 }
