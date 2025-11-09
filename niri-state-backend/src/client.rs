@@ -1,19 +1,16 @@
 use std::env;
 
 use anyhow::anyhow;
-use common::PrintStateInfo;
 use futures::{
     stream::{self},
-    Stream, StreamExt,
+    Stream,
 };
-use log::{debug, info};
+use log::info;
 use niri_ipc::{Event, Reply, Request, Response};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{unix, UnixStream},
 };
-
-use crate::state::NiriState;
 
 pub struct NiriIPCClient {
     reader: BufReader<unix::OwnedReadHalf>,
@@ -74,38 +71,5 @@ impl NiriIPCClient {
                 Err(e) => Some((Err(e), reader)),
             }
         })
-    }
-}
-
-pub struct ClientManager {
-    client: NiriIPCClient,
-    state: NiriState,
-}
-
-impl ClientManager {
-    pub async fn new() -> Self {
-        Self {
-            client: NiriIPCClient::connect()
-                .await
-                .expect("Failed to connect to niri IPC"),
-            state: NiriState::default(),
-        }
-    }
-}
-
-impl ClientManager {
-    pub async fn listen_to_event_stream(mut self) -> anyhow::Result<()> {
-        let mut events = Box::pin(self.client.request_and_read_event_stream().await);
-
-        while let Some(Ok(event)) = events.next().await {
-            info!("Received event: {event:?}");
-
-            self.state.apply(event);
-            debug!("New state: {0:?}", self.state);
-
-            self.state.print_state_info()?;
-        }
-
-        Ok(())
     }
 }
